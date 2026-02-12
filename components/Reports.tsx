@@ -143,44 +143,59 @@ export const Reports: React.FC<ReportsProps> = ({ sales, products, onSettleFiao,
         const { Filesystem, Directory } = await import('@capacitor/filesystem');
         const cleanName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
         
-        // Save to Downloads folder (ExternalStorage/Download)
+        // Save to public Downloads folder
         let savedUri = '';
+        let savedPath = '';
+        
         try {
+          // Try writing directly to /storage/emulated/0/Download/ (public Downloads)
           await Filesystem.writeFile({
-            path: 'Download/' + cleanName,
+            path: `/storage/emulated/0/Download/${cleanName}`,
             data: base64,
-            directory: Directory.ExternalStorage,
-            recursive: true,
           });
-          const { uri } = await Filesystem.getUri({ path: 'Download/' + cleanName, directory: Directory.ExternalStorage });
-          savedUri = uri;
-        } catch (_) {
-          // Fallback: try Documents
+          savedUri = `file:///storage/emulated/0/Download/${cleanName}`;
+          savedPath = `/storage/emulated/0/Download/${cleanName}`;
+        } catch (firstError) {
+          // Fallback: use ExternalStorage directory
           try {
             await Filesystem.writeFile({
               path: cleanName,
               data: base64,
-              directory: Directory.Documents,
+              directory: Directory.ExternalStorage,
               recursive: true,
             });
-            const { uri } = await Filesystem.getUri({ path: cleanName, directory: Directory.Documents });
-            savedUri = uri;
-          } catch (__) {
-            // Last fallback: Cache
-            await Filesystem.writeFile({
-              path: cleanName,
-              data: base64,
-              directory: Directory.Cache,
-              recursive: true,
-            });
-            const { uri } = await Filesystem.getUri({ path: cleanName, directory: Directory.Cache });
-            savedUri = uri;
+            const uriResult = await Filesystem.getUri({ path: cleanName, directory: Directory.ExternalStorage });
+            savedUri = uriResult.uri;
+            savedPath = `ExternalStorage/${cleanName}`;
+          } catch (secondError) {
+            // Last fallback: Documents/Cache
+            try {
+              await Filesystem.writeFile({
+                path: cleanName,
+                data: base64,
+                directory: Directory.Documents,
+                recursive: true,
+              });
+              const uriResult = await Filesystem.getUri({ path: cleanName, directory: Directory.Documents });
+              savedUri = uriResult.uri;
+              savedPath = `Documents/${cleanName}`;
+            } catch (thirdError) {
+              await Filesystem.writeFile({
+                path: cleanName,
+                data: base64,
+                directory: Directory.Cache,
+                recursive: true,
+              });
+              const uriResult = await Filesystem.getUri({ path: cleanName, directory: Directory.Cache });
+              savedUri = uriResult.uri;
+              savedPath = `Cache/${cleanName}`;
+            }
           }
         }
         
-        // Show toast notification
+        // Show toast notification with path
         if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-        setPdfNotification({ visible: true, fileName: cleanName, uri: savedUri, closing: false });
+        setPdfNotification({ visible: true, fileName: savedPath, uri: savedUri, closing: false });
         toastTimerRef.current = setTimeout(() => {
           setPdfNotification(prev => prev.visible ? { ...prev, closing: true } : prev);
           setTimeout(() => setPdfNotification({ visible: false, fileName: '' }), 400);
