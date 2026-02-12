@@ -142,16 +142,45 @@ export const Reports: React.FC<ReportsProps> = ({ sales, products, onSettleFiao,
         
         const { Filesystem, Directory } = await import('@capacitor/filesystem');
         const cleanName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
-        await Filesystem.writeFile({
-          path: cleanName,
-          data: base64,
-          directory: Directory.Documents,
-        });
-        const { uri } = await Filesystem.getUri({ path: cleanName, directory: Directory.Documents });
+        
+        // Save to Downloads folder (ExternalStorage/Download)
+        let savedUri = '';
+        try {
+          await Filesystem.writeFile({
+            path: 'Download/' + cleanName,
+            data: base64,
+            directory: Directory.ExternalStorage,
+            recursive: true,
+          });
+          const { uri } = await Filesystem.getUri({ path: 'Download/' + cleanName, directory: Directory.ExternalStorage });
+          savedUri = uri;
+        } catch (_) {
+          // Fallback: try Documents
+          try {
+            await Filesystem.writeFile({
+              path: cleanName,
+              data: base64,
+              directory: Directory.Documents,
+              recursive: true,
+            });
+            const { uri } = await Filesystem.getUri({ path: cleanName, directory: Directory.Documents });
+            savedUri = uri;
+          } catch (__) {
+            // Last fallback: Cache
+            await Filesystem.writeFile({
+              path: cleanName,
+              data: base64,
+              directory: Directory.Cache,
+              recursive: true,
+            });
+            const { uri } = await Filesystem.getUri({ path: cleanName, directory: Directory.Cache });
+            savedUri = uri;
+          }
+        }
         
         // Show toast notification
         if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-        setPdfNotification({ visible: true, fileName: cleanName, uri, closing: false });
+        setPdfNotification({ visible: true, fileName: cleanName, uri: savedUri, closing: false });
         toastTimerRef.current = setTimeout(() => {
           setPdfNotification(prev => prev.visible ? { ...prev, closing: true } : prev);
           setTimeout(() => setPdfNotification({ visible: false, fileName: '' }), 400);
