@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Inventory Sales Pro</string>
+    <string name="title_activity_main">Inventory &amp; Sales Pro</string>
+    <string name="package_name">com.inventorysalespro.app</string>
+    <string name="custom_url_scheme">com.inventorysalespro.app</string>
+</resources>

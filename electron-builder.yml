@@ -1,0 +1,12 @@
+appId: com.inventory-sales-pro.app
+productName: Inventory & Sales Pro
+files:
+  - dist/**/*
+  - electron/main.cjs
+  - package.json
+win:
+  target:
+    - portable
+  certificateFile: null
+  certificatePassword: null
+  sign: null

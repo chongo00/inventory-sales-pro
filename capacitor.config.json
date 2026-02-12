@@ -1,0 +1,12 @@
+{
+  "appId": "com.inventorysalespro.app",
+  "appName": "Inventory & Sales Pro",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {},
+  "android": {
+    "buildOptions": {}
+  }
+}

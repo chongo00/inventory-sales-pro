@@ -1,0 +1,5 @@
+{
+  "name": "Inventory & Sales Pro",
+  "description": "A comprehensive sales management system featuring a real-time dashboard, inventory CRUD with profit analysis, and advanced reporting with PDF export and payment tracking.",
+  "requestFramePermissions": []
+}
