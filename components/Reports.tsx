@@ -603,6 +603,8 @@ const SummaryCard = ({ title, cup, usd, icon, color, subtitle, exchangeRate }: a
     indigo: 'bg-indigo-50 text-indigo-600 border-indigo-100',
   };
   const rate = exchangeRate || 1;
+  const totalCup = cup + (usd * rate);
+  const totalUsd = totalCup / rate;
   return (
     <div className={`p-3 md:p-6 rounded-2xl md:rounded-[2rem] border shadow-sm transition-transform hover:scale-[1.02] bg-white overflow-hidden`}>
       <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-4">
@@ -610,19 +612,14 @@ const SummaryCard = ({ title, cup, usd, icon, color, subtitle, exchangeRate }: a
         <p className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-wider leading-tight">{title}</p>
       </div>
       <div>
-        {cup > 0 && (
+        {totalCup > 0 ? (
           <>
-            <p className="text-base md:text-2xl font-black text-slate-800 whitespace-nowrap overflow-hidden text-ellipsis">CUP {Math.round(cup).toLocaleString()}</p>
-            <p className="text-[11px] md:text-sm font-semibold text-slate-400 whitespace-nowrap overflow-hidden text-ellipsis">≈ ${(cup / rate).toFixed(2)} USD</p>
+            <p className="text-base md:text-2xl font-black text-slate-800 whitespace-nowrap overflow-hidden text-ellipsis">CUP {Math.round(totalCup).toLocaleString()}</p>
+            <p className="text-[11px] md:text-sm font-semibold text-slate-400 whitespace-nowrap overflow-hidden text-ellipsis">≈ ${totalUsd.toFixed(2)} USD</p>
           </>
+        ) : (
+          <p className="text-base md:text-2xl font-black text-slate-800">—</p>
         )}
-        {usd > 0 && (
-          <>
-            <p className={`${cup > 0 ? 'text-xs md:text-lg mt-1' : 'text-base md:text-2xl'} font-bold text-slate-${cup > 0 ? '600' : '800'} whitespace-nowrap overflow-hidden text-ellipsis`}>${usd.toFixed(2)} USD</p>
-            <p className="text-[11px] md:text-sm font-semibold text-slate-400 whitespace-nowrap overflow-hidden text-ellipsis">≈ CUP {Math.round(usd * rate).toLocaleString()}</p>
-          </>
-        )}
-        {cup === 0 && usd === 0 && <p className="text-base md:text-2xl font-black text-slate-800">—</p>}
         {subtitle && <p className="text-[10px] text-slate-400 mt-0.5">{subtitle}</p>}
       </div>
     </div>
