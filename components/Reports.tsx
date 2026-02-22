@@ -1,6 +1,6 @@
 
 import React, { useMemo, useState } from 'react';
-import { Download, FileText, CheckCircle2, UserPlus, CreditCard, Banknote, History } from 'lucide-react';
+import { Download, FileText, CheckCircle2, UserPlus, CreditCard, Banknote, History, Trash2, DollarSign } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Sale, Product } from '../types';
 
@@ -8,28 +8,47 @@ interface ReportsProps {
   sales: Sale[];
   products: Product[];
   onSettleFiao: (saleId: string, method: 'CASH' | 'TRANSFER') => void;
+  onChangePaymentMethod: (saleId: string, method: 'CASH') => void;
+  onDeleteSale: (saleId: string) => void;
   exchangeRate: number;
 }
 
-export const Reports: React.FC<ReportsProps> = ({ sales, products, onSettleFiao, exchangeRate }) => {
-  const [timeFilter, setTimeFilter] = useState<'day' | 'week' | 'month'>('day');
-  const [expandedSale, setExpandedSale] = useState<string | null>(null);
+function getMonthKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  return `${y}-${m}`;
+}
+
+function monthKeyToLabel(key: string): string {
+  const [y, m] = key.split('-');
+  const months = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const name = months[parseInt(m, 10) - 1] || m;
+  return `${name} ${y}`;
+}
+
+export const Reports: React.FC<ReportsProps> = ({ sales, products, onSettleFiao, onChangePaymentMethod, onDeleteSale, exchangeRate }) => {
+  const now = new Date();
+  const currentMonthKey = getMonthKey(now);
+
+  const availableMonths = useMemo(() => {
+    const set = new Set<string>();
+    sales.forEach(s => set.add(getMonthKey(new Date(s.timestamp))));
+    set.add(currentMonthKey);
+    return Array.from(set).sort().reverse();
+  }, [sales, currentMonthKey]);
+
+  const [selectedMonthKey, setSelectedMonthKey] = useState<string>(currentMonthKey);
+  React.useEffect(() => {
+    if (availableMonths.length && !availableMonths.includes(selectedMonthKey)) {
+      setSelectedMonthKey(availableMonths[0]);
+    }
+  }, [availableMonths, selectedMonthKey]);
   const [pdfNotification, setPdfNotification] = useState<{ visible: boolean; fileName: string; uri?: string; closing?: boolean }>({ visible: false, fileName: '' });
   const toastTimerRef = React.useRef<any>(null);
 
   const filteredSales = useMemo(() => {
-    const now = new Date();
-    return sales.filter(s => {
-      const date = new Date(s.timestamp);
-      if (timeFilter === 'day') return date.toDateString() === now.toDateString();
-      if (timeFilter === 'week') {
-        const weekAgo = new Date(); weekAgo.setDate(now.getDate() - 7);
-        return date >= weekAgo;
-      }
-      const monthAgo = new Date(); monthAgo.setMonth(now.getMonth() - 1);
-      return date >= monthAgo;
-    });
-  }, [sales, timeFilter]);
+    return sales.filter(s => getMonthKey(new Date(s.timestamp)) === selectedMonthKey);
+  }, [sales, selectedMonthKey]);
 
   const chartData = useMemo(() => {
     const groups: Record<string, number> = {};
@@ -41,10 +60,10 @@ export const Reports: React.FC<ReportsProps> = ({ sales, products, onSettleFiao,
   }, [filteredSales]);
 
   const totals = useMemo(() => {
-    const res = { cash: 0, transfer: 0, fiao: 0 };
+    const res = { cash: 0, transfer: 0, fiao: 0, totalCup: 0 };
     filteredSales.forEach(s => {
-      // Convert everything to CUP for unified totals
       const amountInCup = s.currency === 'USD' ? s.totalAmount * exchangeRate : s.totalAmount;
+      res.totalCup += amountInCup;
       if (s.paymentMethod === 'CASH') res.cash += amountInCup;
       else if (s.paymentMethod === 'TRANSFER') res.transfer += amountInCup;
       else res.fiao += amountInCup;
@@ -54,7 +73,7 @@ export const Reports: React.FC<ReportsProps> = ({ sales, products, onSettleFiao,
 
   const cupToUsd = (cup: number) => exchangeRate > 0 ? (cup / exchangeRate) : 0;
 
-  const generatePDF = async (sale?: Sale) => {
+  const generatePDF = async (sale?: Sale, mode?: 'detailed' | 'total') => {
     try {
       // Dynamic imports (async import() works in ESM/Vite, require() does not)
       const jsPDFMod = await import('jspdf');
@@ -93,29 +112,55 @@ export const Reports: React.FC<ReportsProps> = ({ sales, products, onSettleFiao,
         const fileName = `Factura_${sale.id}.pdf`;
         await savePdfAndNotify(doc, fileName);
       } else {
-        doc.setFontSize(14); doc.text(`Resumen (${timeFilter === 'day' ? 'Hoy' : timeFilter === 'week' ? 'Semana' : 'Mes'})`, 20, 50);
+        const isTotal = mode === 'total';
+        doc.setFontSize(14); doc.text(`Resumen ${monthKeyToLabel(selectedMonthKey)}${isTotal ? ' (Agrupado)' : ' (Detallado)'}`, 20, 50);
         
         doc.setFontSize(11); doc.setTextColor(50);
         doc.text(`Ventas Efectivo: CUP ${Math.round(totals.cash).toLocaleString()} / $${cupToUsd(totals.cash).toFixed(2)} USD`, 20, 60);
         doc.text(`Ventas Transferencia: CUP ${Math.round(totals.transfer).toLocaleString()} / $${cupToUsd(totals.transfer).toFixed(2)} USD`, 20, 67);
         doc.text(`Fiao Pendiente: CUP ${Math.round(totals.fiao).toLocaleString()} / $${cupToUsd(totals.fiao).toFixed(2)} USD`, 20, 74);
         
-        const tableData = filteredSales.map(s => {
-          const cup = s.currency === 'USD' ? s.totalAmount * exchangeRate : s.totalAmount;
-          const usd = s.currency === 'CUP' ? s.totalAmount / exchangeRate : s.totalAmount;
-          return [
-            new Date(s.timestamp).toLocaleDateString(),
-            s.productName,
-            `${s.quantity} ${s.unit}`,
-            `CUP ${Math.round(cup).toLocaleString()}`,
-            `$${usd.toFixed(2)}`,
-            s.paymentMethod,
-            s.customerInfo || '-'
-          ];
-        });
-        autoTable(doc, { startY: 82, head: [['Fecha', 'Producto', 'Cant', 'CUP', 'USD', 'Metodo', 'Info']], body: tableData, theme: 'striped' });
+        if (isTotal) {
+          const byProduct: Record<string, { quantity: number; totalAmount: number; totalProfit: number }> = {};
+          filteredSales.forEach(s => {
+            const product = products.find(p => p.id === s.productId);
+            const purchasePrice = product ? product.purchasePrice : 0;
+            const profit = (s.unitPrice - purchasePrice) * s.quantity;
+            if (!byProduct[s.productName]) {
+              byProduct[s.productName] = { quantity: 0, totalAmount: 0, totalProfit: 0 };
+            }
+            byProduct[s.productName].quantity += s.quantity;
+            byProduct[s.productName].totalAmount += s.totalAmount;
+            byProduct[s.productName].totalProfit += profit;
+          });
+          const tableData = Object.entries(byProduct)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([name, data]) => [
+              name,
+              data.quantity.toFixed(2),
+              `${data.totalAmount.toFixed(2)}`,
+              `${data.totalProfit.toFixed(2)}`,
+            ]);
+          autoTable(doc, { startY: 82, head: [['Producto', 'Cant. total', 'Total recaudado', 'Ganancia']], body: tableData, theme: 'striped' });
+        } else {
+          const sorted = [...filteredSales].sort((a, b) => a.productName.localeCompare(b.productName));
+          const tableData = sorted.map(s => {
+            const cup = s.currency === 'USD' ? s.totalAmount * exchangeRate : s.totalAmount;
+            const usd = s.currency === 'CUP' ? s.totalAmount / exchangeRate : s.totalAmount;
+            return [
+              new Date(s.timestamp).toLocaleString(),
+              s.productName,
+              `${s.quantity} ${s.unit}`,
+              `CUP ${Math.round(cup).toLocaleString()}`,
+              `$${usd.toFixed(2)}`,
+              s.paymentMethod,
+              s.customerInfo || '-'
+            ];
+          });
+          autoTable(doc, { startY: 82, head: [['Fecha y hora', 'Producto', 'Cant', 'CUP', 'USD', 'Metodo', 'Info']], body: tableData, theme: 'striped' });
+        }
         
-        const fileName = `Reporte_Ventas_${timeFilter}.pdf`;
+        const fileName = `Reporte_${selectedMonthKey}_${isTotal ? 'Total' : 'Detallado'}.pdf`;
         await savePdfAndNotify(doc, fileName);
       }
     } catch (error) {
@@ -236,10 +281,6 @@ export const Reports: React.FC<ReportsProps> = ({ sales, products, onSettleFiao,
     setTimeout(() => setPdfNotification({ visible: false, fileName: '' }), 400);
   };
 
-  const toggleExpand = (id: string) => {
-    setExpandedSale(expandedSale === id ? null : id);
-  };
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-center gap-4">
@@ -247,34 +288,51 @@ export const Reports: React.FC<ReportsProps> = ({ sales, products, onSettleFiao,
           <h2 className="text-2xl font-black text-slate-800 tracking-tight">Reportes de Rendimiento</h2>
           <p className="text-slate-500 text-sm">Resumen financiero y control de cobros.</p>
         </div>
-        <div className="flex bg-white border border-slate-100 rounded-2xl p-1 shadow-sm">
-          {['day', 'week', 'month'].map((f) => (
-            <button key={f} onClick={() => setTimeFilter(f as any)} className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${timeFilter === f ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-50'}`}>
-              {f === 'day' ? 'Hoy' : f === 'week' ? 'Semana' : 'Mes'}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-bold text-slate-600">Mes:</label>
+          <select
+            value={selectedMonthKey}
+            onChange={(e) => setSelectedMonthKey(e.target.value)}
+            className="bg-white border border-slate-100 rounded-2xl px-4 py-2.5 shadow-sm text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500"
+          >
+            {availableMonths.map(key => (
+              <option key={key} value={key}>{monthKeyToLabel(key)}</option>
+            ))}
+          </select>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:gap-6">
         <SummaryCard title="Ventas Efectivo" cup={totals.cash} usd={cupToUsd(totals.cash)} icon={<Banknote />} color="emerald" />
         <SummaryCard title="Ventas Transf." cup={totals.transfer} usd={cupToUsd(totals.transfer)} icon={<CreditCard />} color="blue" />
-        <div className="col-span-2">
-          <SummaryCard title="Fiao Pendiente" cup={totals.fiao} usd={cupToUsd(totals.fiao)} icon={<UserPlus />} color="rose" />
+        <SummaryCard title="Fiao Pendiente" cup={totals.fiao} usd={cupToUsd(totals.fiao)} icon={<UserPlus />} color="rose" />
+        <div className="p-3 md:p-6 rounded-2xl md:rounded-[2rem] border border-slate-100 shadow-sm bg-white overflow-hidden">
+          <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-4">
+            <div className="p-2 md:p-3 rounded-xl md:rounded-2xl bg-indigo-50 text-indigo-600 border border-indigo-100 shrink-0">
+              <DollarSign size={20} />
+            </div>
+            <p className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-wider leading-tight">Ventas total</p>
+          </div>
+          <div>
+            <p className="text-base md:text-2xl font-black text-slate-800 whitespace-nowrap overflow-hidden text-ellipsis">CUP {Math.round(totals.totalCup).toLocaleString()}</p>
+            <p className="text-xs md:text-lg font-bold text-slate-400 whitespace-nowrap overflow-hidden text-ellipsis">${cupToUsd(totals.totalCup).toFixed(2)} USD</p>
+          </div>
         </div>
       </div>
 
-      <div className="bg-white p-4 md:p-8 rounded-2xl md:rounded-[2rem] border border-slate-100 shadow-sm">
-        <div className="flex justify-between items-center mb-4 md:mb-8">
+      <div className="bg-white p-4 md:p-6 rounded-2xl md:rounded-[2rem] border border-slate-100 shadow-sm">
+        <div className="flex justify-between items-center mb-4">
           <h3 className="font-black text-slate-700 uppercase text-[10px] md:text-xs tracking-widest">Actividad de Ventas</h3>
-          <button 
-            onClick={() => generatePDF()} 
-            className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2.5 rounded-xl font-bold text-xs hover:bg-indigo-700 transition-colors active:scale-95 shadow-md"
-          >
-            <Download size={14} /> Exportar PDF
-          </button>
+          <div className="flex gap-2">
+            <button onClick={() => generatePDF(undefined, 'detailed')} className="flex items-center gap-1.5 bg-indigo-600 text-white px-3 py-2 rounded-xl font-bold text-xs hover:bg-indigo-700 transition-colors active:scale-95">
+              <Download size={12} /> Detallado
+            </button>
+            <button onClick={() => generatePDF(undefined, 'total')} className="flex items-center gap-1.5 bg-slate-600 text-white px-3 py-2 rounded-xl font-bold text-xs hover:bg-slate-700 transition-colors active:scale-95">
+              <Download size={12} /> Total
+            </button>
+          </div>
         </div>
-        <div className="h-[200px] md:h-[280px]">
+        <div className="h-[160px] md:h-[200px]">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -325,20 +383,30 @@ export const Reports: React.FC<ReportsProps> = ({ sales, products, onSettleFiao,
                   <td className="px-6 py-5 text-xs text-slate-400 font-medium max-w-[200px] truncate" title={s.customerInfo}>
                     {s.customerInfo || '-'}
                   </td>
-                  <td className="px-6 py-5 text-center flex items-center justify-center gap-2">
-                    {s.paymentMethod === 'FIAO' && (
-                      <div className="flex gap-1">
-                        <button onClick={() => onSettleFiao(s.id, 'CASH')} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-xl" title="Pagar Efectivo">
+                  <td className="px-6 py-5 text-center">
+                    <div className="flex items-center justify-center gap-1 flex-wrap">
+                      {s.paymentMethod === 'FIAO' && (
+                        <>
+                          <button onClick={() => onSettleFiao(s.id, 'CASH')} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-xl" title="Pagar Efectivo">
+                            <Banknote size={18} />
+                          </button>
+                          <button onClick={() => onSettleFiao(s.id, 'TRANSFER')} className="p-2 text-blue-600 hover:bg-blue-50 rounded-xl" title="Pagar Transf.">
+                            <CreditCard size={18} />
+                          </button>
+                        </>
+                      )}
+                      {s.paymentMethod === 'TRANSFER' && (
+                        <button onClick={() => onChangePaymentMethod(s.id, 'CASH')} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-xl" title="Cambiar a efectivo">
                           <Banknote size={18} />
                         </button>
-                        <button onClick={() => onSettleFiao(s.id, 'TRANSFER')} className="p-2 text-blue-600 hover:bg-blue-50 rounded-xl" title="Pagar Transf.">
-                          <CreditCard size={18} />
-                        </button>
-                      </div>
-                    )}
-                    <button onClick={() => generatePDF(s)} className="p-2 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 rounded-xl">
-                      <FileText size={18} />
-                    </button>
+                      )}
+                      <button onClick={() => generatePDF(s)} className="p-2 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 rounded-xl" title="PDF">
+                        <FileText size={18} />
+                      </button>
+                      <button onClick={() => confirm('¿Eliminar esta transacción? Se devolverá el producto al stock.') && onDeleteSale(s.id)} className="p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600 rounded-xl" title="Eliminar">
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -372,7 +440,7 @@ export const Reports: React.FC<ReportsProps> = ({ sales, products, onSettleFiao,
                   </div>
                 )}
 
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   {s.paymentMethod === 'FIAO' && (
                     <>
                       <button onClick={() => onSettleFiao(s.id, 'CASH')} className="flex-1 py-2 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-bold flex items-center justify-center gap-2">
@@ -383,8 +451,16 @@ export const Reports: React.FC<ReportsProps> = ({ sales, products, onSettleFiao,
                       </button>
                     </>
                   )}
+                  {s.paymentMethod === 'TRANSFER' && (
+                    <button onClick={() => onChangePaymentMethod(s.id, 'CASH')} className="py-2 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-bold flex items-center justify-center gap-2 px-3">
+                      <Banknote size={14} /> Cambiar a efectivo
+                    </button>
+                  )}
                   <button onClick={() => generatePDF(s)} className="p-2 bg-slate-50 text-slate-400 rounded-xl flex items-center justify-center">
                     <FileText size={18} />
+                  </button>
+                  <button onClick={() => confirm('¿Eliminar esta transacción? Se devolverá el producto al stock.') && onDeleteSale(s.id)} className="p-2 bg-rose-50 text-rose-600 rounded-xl flex items-center justify-center">
+                    <Trash2 size={18} />
                   </button>
                 </div>
               </div>

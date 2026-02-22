@@ -10,6 +10,12 @@
 
 :root {
   font-family: "Inter", system-ui, -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --surface-canvas: #f8fafc;
+  --surface-card: #ffffff;
+  --border-subtle: #f1f5f9;
+  --border-default: #e2e8f0;
+  --accent: #4f46e5;
+  --spacing-base: 4px;
 }
 
 body {

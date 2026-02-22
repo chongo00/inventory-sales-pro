@@ -83,7 +83,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
           </nav>
           
           <div className="mt-auto pt-6 border-t border-slate-100 text-[10px] text-slate-400 font-medium uppercase tracking-widest text-center">
-            Pro Version 1.2
+            Pro Version 1.3
           </div>
         </div>
       </aside>

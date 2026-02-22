@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Search, ShoppingCart, Banknote, CreditCard, UserPlus, CheckCircle } from 'lucide-react';
+import { Search, ShoppingCart, Banknote, CreditCard, UserPlus, CheckCircle, Filter } from 'lucide-react';
 import { Product, PaymentMethod } from '../types';
 
 interface PosViewProps {
@@ -10,15 +10,26 @@ interface PosViewProps {
 
 export const PosView: React.FC<PosViewProps> = ({ products, onRegisterSale }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [unitFilter, setUnitFilter] = useState<string>('all');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [quantity, setQuantity] = useState<number>(1);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH');
   const [customerInfo, setCustomerInfo] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
 
-  const filteredProducts = useMemo(() => 
-    products.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()) && p.stock > 0),
-  [products, searchTerm]);
+  const categories = useMemo(() => {
+    const cats = Array.from(new Set(products.filter(p => p.stock > 0).map(p => p.category)));
+    return ['all', ...cats.sort((a, b) => a.localeCompare(b))];
+  }, [products]);
+
+  const filteredProducts = useMemo(() => {
+    let list = products.filter(p => p.stock > 0 && p.name.toLowerCase().includes(searchTerm.toLowerCase()));
+    if (categoryFilter !== 'all') list = list.filter(p => p.category === categoryFilter);
+    if (unitFilter !== 'all') list = list.filter(p => p.unit === unitFilter);
+    return [...list].sort((a, b) => a.name.localeCompare(b.name));
+  }, [products, searchTerm, categoryFilter, unitFilter]);
 
   const total = useMemo(() => 
     selectedProduct ? selectedProduct.salePrice * quantity : 0,
@@ -46,15 +57,63 @@ export const PosView: React.FC<PosViewProps> = ({ products, onRegisterSale }) =>
       <div className="space-y-4">
         <h2 className="text-2xl font-bold text-slate-800">Nueva Venta</h2>
         <div className="bg-white p-4 rounded-2xl border shadow-sm space-y-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input 
-              type="text"
-              placeholder="Buscar producto disponible..."
-              className="w-full pl-10 pr-4 py-2 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-indigo-500"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1 min-w-0">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+              <input 
+                type="text"
+                placeholder="Buscar producto disponible..."
+                className="w-full pl-10 pr-4 py-2 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-indigo-500"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowFilterPanel(prev => !prev)}
+              className={`p-2.5 rounded-xl border-2 transition-all shrink-0 ${
+                showFilterPanel || categoryFilter !== 'all' || unitFilter !== 'all'
+                  ? 'border-indigo-500 bg-indigo-50 text-indigo-600'
+                  : 'border-slate-100 text-slate-400 hover:bg-slate-50'
+              }`}
+              title="Filtros"
+              aria-label="Mostrar filtros"
+            >
+              <Filter size={20} />
+            </button>
+          </div>
+          <div
+            className={`overflow-hidden transition-[max-height,opacity] duration-300 ease-out ${
+              showFilterPanel ? 'max-h-32 opacity-100' : 'max-h-0 opacity-0'
+            }`}
+          >
+            <div className="flex flex-wrap gap-2 pt-1">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <label className="text-xs font-bold text-slate-500 whitespace-nowrap">Categoría</label>
+                <select 
+                  className="py-2 pl-2 pr-6 bg-slate-50 border border-slate-100 rounded-xl text-sm font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500"
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                >
+                  <option value="all">Todas</option>
+                  {categories.filter(c => c !== 'all').map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <label className="text-xs font-bold text-slate-500 whitespace-nowrap">Unidad</label>
+                <select 
+                  className="py-2 pl-3 pr-6 bg-slate-50 border border-slate-100 rounded-xl text-sm font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500"
+                  value={unitFilter}
+                  onChange={(e) => setUnitFilter(e.target.value)}
+                >
+                  <option value="all">Todas</option>
+                  <option value="UND">UND</option>
+                  <option value="LB">LB</option>
+                </select>
+              </div>
+            </div>
           </div>
           
           <div className="max-h-[400px] overflow-y-auto space-y-2 pr-2">

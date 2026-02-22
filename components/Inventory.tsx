@@ -86,12 +86,14 @@ export const Inventory: React.FC<InventoryProps> = ({ products, addProduct, upda
                 <th className="px-6 py-5">P. Compra</th>
                 <th className="px-6 py-5">P. Venta</th>
                 <th className="px-6 py-5 text-emerald-600">Margen</th>
+                <th className="px-6 py-5 text-emerald-600">Margen ganancia total</th>
                 <th className="px-6 py-5 text-center">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredProducts.map((product) => {
                 const profit = product.salePrice - product.purchasePrice;
+                const totalMargin = profit * product.stock;
                 return (
                   <tr key={product.id} className="hover:bg-slate-50/50 transition-colors">
                     <td className="px-6 py-5">
@@ -123,6 +125,11 @@ export const Inventory: React.FC<InventoryProps> = ({ products, addProduct, upda
                       </div>
                     </td>
                     <td className="px-6 py-5">
+                      <div className="text-emerald-600 font-black text-sm">
+                        {product.currency === 'USD' ? '$' : ''}{totalMargin.toFixed(2)}{product.currency === 'CUP' ? ' CUP' : ''}
+                      </div>
+                    </td>
+                    <td className="px-6 py-5">
                       <div className="flex items-center justify-center gap-2">
                         <button 
                           onClick={() => handleEdit(product)}
@@ -143,7 +150,7 @@ export const Inventory: React.FC<InventoryProps> = ({ products, addProduct, upda
               })}
               {filteredProducts.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-6 py-16 text-center text-slate-300 italic font-medium">
+                  <td colSpan={8} className="px-6 py-16 text-center text-slate-300 italic font-medium">
                     No se encontraron productos disponibles.
                   </td>
                 </tr>

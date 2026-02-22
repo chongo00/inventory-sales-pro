@@ -162,8 +162,25 @@ const App: React.FC = () => {
   const settleFiao = (saleId: string, finalMethod: 'CASH' | 'TRANSFER') => {
     setSales(prev => prev.map(s => 
       s.id === saleId 
-        ? { ...s, paymentMethod: finalMethod, isPaid: true, customerInfo: s.customerInfo + ' (PAGADO)' } 
+        ? { ...s, paymentMethod: finalMethod, isPaid: true, customerInfo: (s.customerInfo || '') + ' (PAGADO)' } 
         : s
+    ));
+  };
+
+  const onChangePaymentMethod = (saleId: string, method: 'CASH') => {
+    setSales(prev => prev.map(s => 
+      s.id === saleId && s.paymentMethod === 'TRANSFER' ? { ...s, paymentMethod: method } : s
+    ));
+  };
+
+  const onDeleteSale = (saleId: string) => {
+    const sale = sales.find(s => s.id === saleId);
+    if (!sale) return;
+    setSales(prev => prev.filter(s => s.id !== saleId));
+    setProducts(prev => prev.map(p => 
+      p.id === sale.productId 
+        ? { ...p, stock: p.stock + sale.quantity, soldCount: Math.max(0, p.soldCount - sale.quantity) } 
+        : p
     ));
   };
 
@@ -193,8 +210,8 @@ const App: React.FC = () => {
 
   return (
     <Layout currentView={view} setView={setView}>
-      <main className="p-4 md:p-8 max-w-7xl mx-auto animate-fadeIn">
-        {view === 'dashboard' && <Dashboard products={products} sales={sales} />}
+      <main className="p-4 md:p-8 max-w-7xl mx-auto animate-fadeIn min-h-[calc(100vh-4rem)] md:min-h-[calc(100vh-0px)]">
+        {view === 'dashboard' && <Dashboard products={products} sales={sales} onRegisterSale={registerSale} />}
         {view === 'inventory' && (
           <Inventory 
             products={products} 
@@ -204,7 +221,7 @@ const App: React.FC = () => {
           />
         )}
         {view === 'pos' && <PosView products={products} onRegisterSale={registerSale} />}
-        {view === 'reports' && <Reports sales={sales} products={products} onSettleFiao={settleFiao} exchangeRate={exchangeRate} />}
+        {view === 'reports' && <Reports sales={sales} products={products} onSettleFiao={settleFiao} onChangePaymentMethod={onChangePaymentMethod} onDeleteSale={onDeleteSale} exchangeRate={exchangeRate} />}
         {view === 'currency' && <CurrencySettings exchangeRate={exchangeRate} onUpdateRate={setExchangeRate} />}
         {view === 'settings' && (
           <Settings 

@@ -25,6 +25,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({ initialData, onClose, 
   const [showNewCategory, setShowNewCategory] = useState(existingCategories.length === 0);
 
   const profit = formData.salePrice - formData.purchasePrice;
+  const totalMargin = profit * formData.stock;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -201,12 +202,20 @@ export const ProductForm: React.FC<ProductFormProps> = ({ initialData, onClose, 
             />
           </div>
 
-          <div className="p-5 bg-indigo-600 rounded-3xl flex items-center justify-between text-white shadow-xl shadow-indigo-100">
-            <div>
-              <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Utilidad Estimada</p>
-              <p className="text-xl font-black">${profit.toLocaleString()} {formData.currency}</p>
+          <div className="space-y-3">
+            <div className="p-5 bg-indigo-600 rounded-3xl flex items-center justify-between text-white shadow-xl shadow-indigo-100">
+              <div>
+                <p className="text-[10px] font-black uppercase opacity-60 tracking-widest">Margen por unidad</p>
+                <p className="text-xl font-black">${profit.toLocaleString()} {formData.currency}</p>
+              </div>
+              <Tag size={24} className="opacity-40" />
             </div>
-            <Tag size={24} className="opacity-40" />
+            <div className="p-5 bg-slate-100 rounded-3xl flex items-center justify-between border border-slate-200">
+              <div>
+                <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Margen ganancia total (con stock)</p>
+                <p className="text-lg font-black text-slate-800">${totalMargin.toLocaleString()} {formData.currency}</p>
+              </div>
+            </div>
           </div>
 
           <button type="submit" className="w-full py-5 bg-slate-900 hover:bg-black text-white rounded-3xl font-black shadow-2xl transition-all active:scale-95 mt-4">
