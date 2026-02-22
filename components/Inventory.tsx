@@ -114,20 +114,37 @@ export const Inventory: React.FC<InventoryProps> = ({ products, addProduct, upda
                       </span>
                     </td>
                     <td className="px-6 py-5 text-slate-400 text-sm font-medium">
-                      {product.currency === 'USD' ? '$' : 'CUP '}{product.purchasePrice.toLocaleString()}
+                      {product.purchasePriceUsd != null
+                        ? <>$ {product.purchasePriceUsd.toFixed(2)} USD <span className="text-slate-300">({product.purchasePrice.toLocaleString()} CUP)</span></>
+                        : product.currency === 'USD' ? '$' + product.purchasePrice.toLocaleString() : 'CUP ' + product.purchasePrice.toLocaleString()}
                     </td>
                     <td className="px-6 py-5 text-indigo-600 font-black text-sm">
-                      {product.currency === 'USD' ? '$' : 'CUP '}{product.salePrice.toLocaleString()}
+                      {product.salePriceUsd != null
+                        ? <>$ {product.salePriceUsd.toFixed(2)} USD <span className="text-indigo-400 font-semibold">({product.salePrice.toLocaleString()} CUP)</span></>
+                        : product.currency === 'USD' ? '$' + product.salePrice.toLocaleString() : 'CUP ' + product.salePrice.toLocaleString()}
                     </td>
                     <td className="px-6 py-5">
-                      <div className="flex items-center gap-1.5 text-emerald-600 font-black text-sm">
-                        <TrendingUp size={14} />
-                        {product.currency === 'USD' ? '$' : ''}{profit.toFixed(2)}{product.currency === 'CUP' ? ' CUP' : ''}
+                      <div className="flex flex-col gap-0.5 text-emerald-600 font-black text-sm">
+                        {product.salePriceUsd != null ? (
+                          <>
+                            <span className="flex items-center gap-1.5"><TrendingUp size={14} />{profit.toLocaleString()} CUP</span>
+                            <span className="text-[10px] font-bold text-slate-400">≈ $ {(product.salePriceUsd - (product.purchasePriceUsd ?? 0)).toFixed(2)} USD/u</span>
+                          </>
+                        ) : (
+                          <span className="flex items-center gap-1.5"><TrendingUp size={14} />{product.currency === 'USD' ? '$' : ''}{profit.toFixed(2)}{product.currency === 'CUP' ? ' CUP' : ''}</span>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-5">
-                      <div className="text-emerald-600 font-black text-sm">
-                        {product.currency === 'USD' ? '$' : ''}{totalMargin.toFixed(2)}{product.currency === 'CUP' ? ' CUP' : ''}
+                      <div className="flex flex-col gap-0.5 text-emerald-600 font-black text-sm">
+                        {product.salePriceUsd != null ? (
+                          <>
+                            <span>{totalMargin.toLocaleString()} CUP</span>
+                            <span className="text-[10px] font-bold text-slate-400">≈ $ {((product.salePriceUsd - (product.purchasePriceUsd ?? 0)) * (product.stock || 0)).toFixed(2)} USD</span>
+                          </>
+                        ) : (
+                          <span>{product.currency === 'USD' ? '$' : ''}{totalMargin.toFixed(2)}{product.currency === 'CUP' ? ' CUP' : ''}</span>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-5">

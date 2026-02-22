@@ -162,6 +162,11 @@ export const ProductForm: React.FC<ProductFormProps> = ({ initialData, onClose, 
             </div>
           )}
 
+          {initialData?.salePriceUsd != null && (
+            <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-xl text-xs text-indigo-800">
+              <strong>Producto con origen en USD.</strong> Los valores abajo están en CUP (actualizados con la tasa de cambio). Al cambiar la tasa en Moneda, este producto se actualizará.
+            </div>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="space-y-2">
               <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Moneda</label>
@@ -171,7 +176,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({ initialData, onClose, 
                 onChange={e => setFormData({ ...formData, currency: e.target.value as CurrencyType })}
               >
                 <option value="CUP">CUP</option>
-                <option value="USD">USD (se guarda en CUP al tipo de cambio actual)</option>
+                <option value="USD">USD (se convierte a CUP al guardar)</option>
               </select>
             </div>
             <div className="space-y-2">
@@ -185,6 +190,9 @@ export const ProductForm: React.FC<ProductFormProps> = ({ initialData, onClose, 
                 onChange={e => handleNumChange('purchasePrice', e.target.value)} 
                 placeholder="0.00"
               />
+              {initialData?.purchasePriceUsd != null && (
+                <p className="text-[10px] text-slate-400">Origen: $ {initialData.purchasePriceUsd.toFixed(2)} USD</p>
+              )}
             </div>
             <div className="space-y-2">
               <label className="text-xs font-black text-slate-400 uppercase tracking-widest">P. Venta</label>
@@ -197,6 +205,9 @@ export const ProductForm: React.FC<ProductFormProps> = ({ initialData, onClose, 
                 onChange={e => handleNumChange('salePrice', e.target.value)} 
                 placeholder="0.00"
               />
+              {initialData?.salePriceUsd != null && (
+                <p className="text-[10px] text-slate-400">Origen: $ {initialData.salePriceUsd.toFixed(2)} USD</p>
+              )}
             </div>
           </div>
 
