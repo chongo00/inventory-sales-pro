@@ -96,7 +96,7 @@ export const CurrencySettings: React.FC<CurrencySettingsProps> = ({ exchangeRate
           <ul className="space-y-1 text-amber-700 text-xs">
             <li>• En <strong>Reportes</strong>: Los cards muestran CUP y su equivalencia en USD calculada automáticamente.</li>
             <li>• En <strong>PDFs</strong>: Los reportes y facturas incluyen ambas monedas con la tasa configurada.</li>
-            <li>• Las ventas en USD se convierten a CUP y viceversa usando esta tasa.</li>
+            <li>• Los productos agregados en USD se guardan en CUP; al <strong>cambiar la tasa</strong>, sus precios en inventario se actualizan automáticamente.</li>
           </ul>
         </div>
       </div>

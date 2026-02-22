@@ -9,9 +9,10 @@ interface InventoryProps {
   addProduct: (p: Omit<Product, 'id' | 'soldCount' | 'initialStock'>) => void;
   updateProduct: (p: Product) => void;
   deleteProduct: (id: string) => void;
+  exchangeRate: number;
 }
 
-export const Inventory: React.FC<InventoryProps> = ({ products, addProduct, updateProduct, deleteProduct }) => {
+export const Inventory: React.FC<InventoryProps> = ({ products, addProduct, updateProduct, deleteProduct, exchangeRate }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [showProductModal, setShowProductModal] = useState(false);
@@ -173,6 +174,7 @@ export const Inventory: React.FC<InventoryProps> = ({ products, addProduct, upda
           }}
           initialData={editingProduct || undefined}
           existingCategories={categories.filter(c => c !== 'all')}
+          exchangeRate={exchangeRate}
         />
       )}
     </div>

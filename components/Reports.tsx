@@ -1,8 +1,8 @@
 
 import React, { useMemo, useState } from 'react';
-import { Download, FileText, CheckCircle2, UserPlus, CreditCard, Banknote, History, Trash2, DollarSign } from 'lucide-react';
+import { Download, FileText, CheckCircle2, UserPlus, CreditCard, Banknote, History, Trash2, DollarSign, Filter } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Sale, Product } from '../types';
+import { Sale, Product, PaymentMethod } from '../types';
 
 interface ReportsProps {
   sales: Sale[];
@@ -60,6 +60,8 @@ export const Reports: React.FC<ReportsProps> = ({ sales, products, onSettleFiao,
 
   const [periodType, setPeriodType] = useState<ReportPeriodType>('day');
   const [selectedMonthKey, setSelectedMonthKey] = useState<string>(currentMonthKey);
+  const [paymentFilter, setPaymentFilter] = useState<'all' | PaymentMethod>('all');
+  const [showHistoryFilter, setShowHistoryFilter] = useState(false);
   const [pdfNotification, setPdfNotification] = useState<{ visible: boolean; fileName: string; uri?: string; closing?: boolean }>({ visible: false, fileName: '' });
   const toastTimerRef = React.useRef<any>(null);
 
@@ -73,6 +75,11 @@ export const Reports: React.FC<ReportsProps> = ({ sales, products, onSettleFiao,
     const today = new Date();
     return sales.filter(s => isSaleInPeriod(s.timestamp, periodType, selectedMonthKey, today));
   }, [sales, periodType, selectedMonthKey]);
+
+  const historySales = useMemo(() => {
+    if (paymentFilter === 'all') return filteredSales;
+    return filteredSales.filter(s => s.paymentMethod === paymentFilter);
+  }, [filteredSales, paymentFilter]);
 
   const chartData = useMemo(() => {
     const groups: Record<string, number> = {};
@@ -411,9 +418,45 @@ export const Reports: React.FC<ReportsProps> = ({ sales, products, onSettleFiao,
       </div>
 
       <div className="bg-white rounded-2xl md:rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
-        <div className="p-4 md:p-6 border-b border-slate-50 flex items-center justify-between">
-          <h3 className="font-black text-slate-700 text-sm uppercase tracking-widest">Historial de Transacciones</h3>
-          <History size={18} className="text-slate-300" />
+        <div className="p-4 md:p-6 border-b border-slate-50">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="font-black text-slate-700 text-sm uppercase tracking-widest">Historial de Transacciones</h3>
+            <button
+              type="button"
+              onClick={() => setShowHistoryFilter(prev => !prev)}
+              className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+                showHistoryFilter ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              <Filter size={16} />
+              Filtro método
+              <span className="text-slate-400 font-normal">({paymentFilter === 'all' ? 'Todos' : paymentFilter === 'CASH' ? 'Efectivo' : paymentFilter === 'TRANSFER' ? 'Transf.' : 'Fiao'})</span>
+            </button>
+          </div>
+          <div
+            className={`grid transition-[grid-template-rows] duration-300 ease-out overflow-hidden`}
+            style={{ gridTemplateRows: showHistoryFilter ? '1fr' : '0fr' }}
+          >
+            <div className="min-h-0">
+              <div className="pt-3 flex flex-wrap items-center gap-2">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Método:</span>
+                {(['all', 'CASH', 'TRANSFER', 'FIAO'] as const).map(m => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setPaymentFilter(m)}
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${
+                      paymentFilter === m
+                        ? m === 'all' ? 'bg-slate-200 text-slate-800' : m === 'CASH' ? 'bg-emerald-500 text-white' : m === 'TRANSFER' ? 'bg-blue-500 text-white' : 'bg-rose-500 text-white'
+                        : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                    }`}
+                  >
+                    {m === 'all' ? 'Todos' : m === 'CASH' ? 'Efectivo' : m === 'TRANSFER' ? 'Transf.' : 'Fiao'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
         
         {/* Desktop Table */}
@@ -430,7 +473,7 @@ export const Reports: React.FC<ReportsProps> = ({ sales, products, onSettleFiao,
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredSales.map(s => (
+              {historySales.map(s => (
                 <tr key={s.id} className="text-sm hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-5 font-bold text-slate-700">{s.productName}</td>
                   <td className="px-6 py-5 text-slate-500">{s.quantity} {s.unit}</td>
@@ -475,12 +518,24 @@ export const Reports: React.FC<ReportsProps> = ({ sales, products, onSettleFiao,
                   </td>
                 </tr>
               ))}
+              {historySales.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-slate-400 text-sm">
+                    {paymentFilter === 'all' ? 'No hay transacciones en este periodo.' : `No hay transacciones por ${paymentFilter === 'CASH' ? 'efectivo' : paymentFilter === 'TRANSFER' ? 'transferencia' : 'fiao'} en este periodo.`}
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
 
           {/* Mobile View */}
           <div className="md:hidden divide-y divide-slate-100">
-            {filteredSales.map(s => (
+            {historySales.length === 0 && (
+              <div className="p-6 text-center text-slate-400 text-sm">
+                {paymentFilter === 'all' ? 'No hay transacciones en este periodo.' : `No hay transacciones por ${paymentFilter === 'CASH' ? 'efectivo' : paymentFilter === 'TRANSFER' ? 'transferencia' : 'fiao'} en este periodo.`}
+              </div>
+            )}
+            {historySales.map(s => (
               <div key={s.id} className="p-4 space-y-3">
                 <div className="flex justify-between items-start">
                   <div>

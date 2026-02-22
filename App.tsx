@@ -72,6 +72,20 @@ const App: React.FC = () => {
     localStorage.setItem(EXCHANGE_RATE_KEY, exchangeRate.toString());
   }, [exchangeRate]);
 
+  const handleUpdateExchangeRate = (newRate: number) => {
+    setExchangeRate(newRate);
+    setProducts(prev => prev.map(p => {
+      if (p.purchasePriceUsd != null && p.salePriceUsd != null) {
+        return {
+          ...p,
+          purchasePrice: Math.round(p.purchasePriceUsd * newRate),
+          salePrice: Math.round(p.salePriceUsd * newRate),
+        };
+      }
+      return p;
+    }));
+  };
+
   useEffect(() => {
     localStorage.setItem(AUTO_RESET_PERIOD_KEY, autoResetPeriod);
   }, [autoResetPeriod]);
@@ -218,11 +232,12 @@ const App: React.FC = () => {
             addProduct={addProduct} 
             updateProduct={updateProduct} 
             deleteProduct={deleteProduct}
+            exchangeRate={exchangeRate}
           />
         )}
         {view === 'pos' && <PosView products={products} onRegisterSale={registerSale} />}
         {view === 'reports' && <Reports sales={sales} products={products} onSettleFiao={settleFiao} onChangePaymentMethod={onChangePaymentMethod} onDeleteSale={onDeleteSale} exchangeRate={exchangeRate} />}
-        {view === 'currency' && <CurrencySettings exchangeRate={exchangeRate} onUpdateRate={setExchangeRate} />}
+        {view === 'currency' && <CurrencySettings exchangeRate={exchangeRate} onUpdateRate={handleUpdateExchangeRate} />}
         {view === 'settings' && (
           <Settings 
             autoResetPeriod={autoResetPeriod}

@@ -14,6 +14,9 @@ export interface Product {
   initialStock: number;
   soldCount: number;
   unit: UnitType;
+  /** Precios originales en USD; si existen, al cambiar la tasa se recalculan purchasePrice/salePrice en CUP */
+  purchasePriceUsd?: number;
+  salePriceUsd?: number;
 }
 
 export interface Sale {

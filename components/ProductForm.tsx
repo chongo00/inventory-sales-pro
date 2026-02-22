@@ -8,9 +8,10 @@ interface ProductFormProps {
   onClose: () => void;
   onSubmit: (data: Omit<Product, 'id' | 'soldCount' | 'initialStock'>) => void;
   existingCategories: string[];
+  exchangeRate: number;
 }
 
-export const ProductForm: React.FC<ProductFormProps> = ({ initialData, onClose, onSubmit, existingCategories }) => {
+export const ProductForm: React.FC<ProductFormProps> = ({ initialData, onClose, onSubmit, existingCategories, exchangeRate }) => {
   const [formData, setFormData] = useState({
     name: initialData?.name || '',
     category: initialData?.category || '',
@@ -29,11 +30,23 @@ export const ProductForm: React.FC<ProductFormProps> = ({ initialData, onClose, 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Si se creó nueva categoría, usarla
-    const finalData = {
+    const rate = exchangeRate > 0 ? exchangeRate : 495;
+    let finalData: Omit<Product, 'id' | 'soldCount' | 'initialStock'> = {
       ...formData,
       category: showNewCategory && newCategory ? newCategory : formData.category
     };
+    if (finalData.currency === 'USD') {
+      finalData = {
+        ...finalData,
+        currency: 'CUP',
+        purchasePrice: Math.round(finalData.purchasePrice * rate),
+        salePrice: Math.round(finalData.salePrice * rate),
+        purchasePriceUsd: finalData.purchasePrice,
+        salePriceUsd: finalData.salePrice,
+      };
+    } else {
+      finalData = { ...finalData, purchasePriceUsd: undefined, salePriceUsd: undefined };
+    }
     onSubmit(finalData);
   };
 
@@ -158,7 +171,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({ initialData, onClose, 
                 onChange={e => setFormData({ ...formData, currency: e.target.value as CurrencyType })}
               >
                 <option value="CUP">CUP</option>
-                <option value="USD">USD</option>
+                <option value="USD">USD (se guarda en CUP al tipo de cambio actual)</option>
               </select>
             </div>
             <div className="space-y-2">
