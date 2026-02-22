@@ -69,7 +69,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView }
                     setIsOpen(false);
                   }}
                   className={`
-                    w-full flex items-center gap-3 px-4 py-4 rounded-2xl text-sm font-bold transition-all duration-200
+                    w-full flex items-center gap-3 px-4 py-4 rounded-2xl text-sm font-bold transition-all duration-200 ease-out active:scale-[0.98]
                     ${currentView === item.id 
                       ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' 
                       : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'}

@@ -13,6 +13,8 @@ interface ReportsProps {
   exchangeRate: number;
 }
 
+export type ReportPeriodType = 'day' | 'week' | 'month';
+
 function getMonthKey(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -26,6 +28,25 @@ function monthKeyToLabel(key: string): string {
   return `${name} ${y}`;
 }
 
+function isSaleInPeriod(isoDate: string, periodType: ReportPeriodType, selectedMonthKey: string, now: Date): boolean {
+  const d = new Date(isoDate);
+  if (Number.isNaN(d.getTime())) return false;
+  if (periodType === 'day') {
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+  }
+  if (periodType === 'week') {
+    const weekAgo = new Date(now);
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    weekAgo.setHours(0, 0, 0, 0);
+    const end = new Date(now);
+    end.setHours(23, 59, 59, 999);
+    return d >= weekAgo && d <= end;
+  }
+  // Mes: mismo criterio que día/semana — usar componentes de fecha en hora local de la venta
+  const [y, m] = selectedMonthKey.split('-').map(Number);
+  return d.getFullYear() === y && d.getMonth() === m - 1;
+}
+
 export const Reports: React.FC<ReportsProps> = ({ sales, products, onSettleFiao, onChangePaymentMethod, onDeleteSale, exchangeRate }) => {
   const now = new Date();
   const currentMonthKey = getMonthKey(now);
@@ -37,18 +58,21 @@ export const Reports: React.FC<ReportsProps> = ({ sales, products, onSettleFiao,
     return Array.from(set).sort().reverse();
   }, [sales, currentMonthKey]);
 
+  const [periodType, setPeriodType] = useState<ReportPeriodType>('day');
   const [selectedMonthKey, setSelectedMonthKey] = useState<string>(currentMonthKey);
-  React.useEffect(() => {
-    if (availableMonths.length && !availableMonths.includes(selectedMonthKey)) {
-      setSelectedMonthKey(availableMonths[0]);
-    }
-  }, [availableMonths, selectedMonthKey]);
   const [pdfNotification, setPdfNotification] = useState<{ visible: boolean; fileName: string; uri?: string; closing?: boolean }>({ visible: false, fileName: '' });
   const toastTimerRef = React.useRef<any>(null);
 
+  React.useEffect(() => {
+    if (periodType === 'month' && availableMonths.length && !availableMonths.includes(selectedMonthKey)) {
+      setSelectedMonthKey(availableMonths[0]);
+    }
+  }, [periodType, availableMonths, selectedMonthKey]);
+
   const filteredSales = useMemo(() => {
-    return sales.filter(s => getMonthKey(new Date(s.timestamp)) === selectedMonthKey);
-  }, [sales, selectedMonthKey]);
+    const today = new Date();
+    return sales.filter(s => isSaleInPeriod(s.timestamp, periodType, selectedMonthKey, today));
+  }, [sales, periodType, selectedMonthKey]);
 
   const chartData = useMemo(() => {
     const groups: Record<string, number> = {};
@@ -60,18 +84,28 @@ export const Reports: React.FC<ReportsProps> = ({ sales, products, onSettleFiao,
   }, [filteredSales]);
 
   const totals = useMemo(() => {
-    const res = { cash: 0, transfer: 0, fiao: 0, totalCup: 0 };
+    const res = {
+      cashCup: 0, cashUsd: 0,
+      transferCup: 0, transferUsd: 0,
+      fiaoCup: 0, fiaoUsd: 0,
+      totalCobradoCup: 0, totalCobradoUsd: 0,
+    };
     filteredSales.forEach(s => {
-      const amountInCup = s.currency === 'USD' ? s.totalAmount * exchangeRate : s.totalAmount;
-      res.totalCup += amountInCup;
-      if (s.paymentMethod === 'CASH') res.cash += amountInCup;
-      else if (s.paymentMethod === 'TRANSFER') res.transfer += amountInCup;
-      else res.fiao += amountInCup;
+      const isCup = s.currency !== 'USD';
+      const amt = s.totalAmount;
+      if (s.paymentMethod === 'CASH') {
+        if (isCup) { res.cashCup += amt; res.totalCobradoCup += amt; }
+        else       { res.cashUsd += amt; res.totalCobradoUsd += amt; }
+      } else if (s.paymentMethod === 'TRANSFER') {
+        if (isCup) { res.transferCup += amt; res.totalCobradoCup += amt; }
+        else       { res.transferUsd += amt; res.totalCobradoUsd += amt; }
+      } else {
+        if (isCup) res.fiaoCup += amt;
+        else       res.fiaoUsd += amt;
+      }
     });
     return res;
-  }, [filteredSales, exchangeRate]);
-
-  const cupToUsd = (cup: number) => exchangeRate > 0 ? (cup / exchangeRate) : 0;
+  }, [filteredSales]);
 
   const generatePDF = async (sale?: Sale, mode?: 'detailed' | 'total') => {
     try {
@@ -88,7 +122,9 @@ export const Reports: React.FC<ReportsProps> = ({ sales, products, onSettleFiao,
       doc.setTextColor(79, 70, 229);
       doc.text('REPORTE DE VENTAS - SALESPRO', 105, 20, { align: 'center' });
       doc.setFontSize(10); doc.setTextColor(100);
-      doc.text(`Generado: ${new Date().toLocaleString()}`, 105, 28, { align: 'center' });
+      const _now = new Date();
+      const genDate = (_now.getMonth()+1) + '/' + _now.getDate() + '/' + _now.getFullYear() + ' ' + _now.toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit'});
+      doc.text('Generado: ' + genDate, 105, 28, { align: 'center' });
       doc.text(`Tasa de cambio: 1 USD = ${exchangeRate} CUP`, 105, 34, { align: 'center' });
 
       if (sale) {
@@ -105,7 +141,7 @@ export const Reports: React.FC<ReportsProps> = ({ sales, products, onSettleFiao,
           ['Total en USD', `$${amountUSD.toFixed(2)}`],
           ['Metodo Pago', sale.paymentMethod === 'CASH' ? 'EFECTIVO (CASH)' : sale.paymentMethod === 'TRANSFER' ? 'TRANSFERENCIA' : 'FIAO (DEUDA)'],
           ['Cliente/Info', sale.customerInfo || 'N/A'],
-          ['Fecha', new Date(sale.timestamp).toLocaleString()],
+          ['Fecha', (() => { const _d = new Date(sale.timestamp); return (_d.getMonth()+1)+'/'+_d.getDate()+'/'+_d.getFullYear()+' '+_d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}); })()],
         ];
         autoTable(doc, { startY: 60, body: tableData, theme: 'grid', headStyles: { fillColor: [79, 70, 229] } });
         
@@ -113,54 +149,76 @@ export const Reports: React.FC<ReportsProps> = ({ sales, products, onSettleFiao,
         await savePdfAndNotify(doc, fileName);
       } else {
         const isTotal = mode === 'total';
-        doc.setFontSize(14); doc.text(`Resumen ${monthKeyToLabel(selectedMonthKey)}${isTotal ? ' (Agrupado)' : ' (Detallado)'}`, 20, 50);
+        const periodTitle = periodType === 'day' ? 'Hoy' : periodType === 'week' ? 'Esta semana' : monthKeyToLabel(selectedMonthKey);
+        doc.setFontSize(14); doc.text(`Resumen ${periodTitle}${isTotal ? ' (Agrupado)' : ' (Detallado)'}`, 20, 50);
         
         doc.setFontSize(11); doc.setTextColor(50);
-        doc.text(`Ventas Efectivo: CUP ${Math.round(totals.cash).toLocaleString()} / $${cupToUsd(totals.cash).toFixed(2)} USD`, 20, 60);
-        doc.text(`Ventas Transferencia: CUP ${Math.round(totals.transfer).toLocaleString()} / $${cupToUsd(totals.transfer).toFixed(2)} USD`, 20, 67);
-        doc.text(`Fiao Pendiente: CUP ${Math.round(totals.fiao).toLocaleString()} / $${cupToUsd(totals.fiao).toFixed(2)} USD`, 20, 74);
+        const rate = exchangeRate || 1;
+        const fmtNum = (n: number) => Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        const fmtDual = (label: string, cup: number, usd: number) => {
+          const parts: string[] = [];
+          if (cup > 0) parts.push('CUP ' + fmtNum(cup) + ' (~$' + (cup / rate).toFixed(2) + ')');
+          if (usd > 0) parts.push('$' + usd.toFixed(2) + ' USD (~CUP ' + fmtNum(usd * rate) + ')');
+          return label + ': ' + (parts.length ? parts.join(' + ') : '--');
+        };
+        doc.text(fmtDual('Ventas Efectivo', totals.cashCup, totals.cashUsd), 20, 60);
+        doc.text(fmtDual('Ventas Transferencia', totals.transferCup, totals.transferUsd), 20, 67);
+        doc.text(fmtDual('Fiao Pendiente', totals.fiaoCup, totals.fiaoUsd), 20, 74);
         
         if (isTotal) {
-          const byProduct: Record<string, { quantity: number; totalAmount: number; totalProfit: number }> = {};
+          const byProduct: Record<string, { quantity: number; totalCup: number; totalUsd: number; totalProfit: number }> = {};
           filteredSales.forEach(s => {
             const product = products.find(p => p.id === s.productId);
             const purchasePrice = product ? product.purchasePrice : 0;
             const profit = (s.unitPrice - purchasePrice) * s.quantity;
             if (!byProduct[s.productName]) {
-              byProduct[s.productName] = { quantity: 0, totalAmount: 0, totalProfit: 0 };
+              byProduct[s.productName] = { quantity: 0, totalCup: 0, totalUsd: 0, totalProfit: 0 };
             }
             byProduct[s.productName].quantity += s.quantity;
-            byProduct[s.productName].totalAmount += s.totalAmount;
+            if (s.currency === 'USD') byProduct[s.productName].totalUsd += s.totalAmount;
+            else                      byProduct[s.productName].totalCup += s.totalAmount;
             byProduct[s.productName].totalProfit += profit;
           });
           const tableData = Object.entries(byProduct)
             .sort(([a], [b]) => a.localeCompare(b))
-            .map(([name, data]) => [
-              name,
-              data.quantity.toFixed(2),
-              `${data.totalAmount.toFixed(2)}`,
-              `${data.totalProfit.toFixed(2)}`,
-            ]);
-          autoTable(doc, { startY: 82, head: [['Producto', 'Cant. total', 'Total recaudado', 'Ganancia']], body: tableData, theme: 'striped' });
+            .map(([name, data]) => {
+              const equivUsd = data.totalCup > 0 ? '$' + (data.totalCup / rate).toFixed(2) : '--';
+              const equivCup = data.totalUsd > 0 ? 'CUP ' + fmtNum(data.totalUsd * rate) : '--';
+              const recaudado = [
+                data.totalCup > 0 ? 'CUP ' + fmtNum(data.totalCup) : '',
+                data.totalUsd > 0 ? '$' + data.totalUsd.toFixed(2) : '',
+              ].filter(Boolean).join(' + ') || '--';
+              const equiv = [
+                data.totalCup > 0 ? '~' + equivUsd : '',
+                data.totalUsd > 0 ? '~' + equivCup : '',
+              ].filter(Boolean).join(' / ') || '--';
+              return [name, data.quantity.toFixed(2), recaudado, equiv, data.totalProfit.toFixed(2)];
+            });
+          autoTable(doc, { startY: 82, head: [['Producto', 'Cant.', 'Recaudado', 'Equiv.', 'Ganancia']], body: tableData, theme: 'striped' });
         } else {
           const sorted = [...filteredSales].sort((a, b) => a.productName.localeCompare(b.productName));
           const tableData = sorted.map(s => {
-            const cup = s.currency === 'USD' ? s.totalAmount * exchangeRate : s.totalAmount;
-            const usd = s.currency === 'CUP' ? s.totalAmount / exchangeRate : s.totalAmount;
+            const original = s.currency === 'USD' ? '$' + s.totalAmount.toFixed(2) : 'CUP ' + fmtNum(s.totalAmount);
+            const equiv = s.currency === 'USD'
+              ? '~CUP ' + fmtNum(s.totalAmount * rate)
+              : '~$' + (s.totalAmount / rate).toFixed(2);
+            const d = new Date(s.timestamp);
+            const fecha = (d.getMonth()+1) + '/' + d.getDate() + '/' + d.getFullYear() + ' ' + d.toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit'});
             return [
-              new Date(s.timestamp).toLocaleString(),
+              fecha,
               s.productName,
-              `${s.quantity} ${s.unit}`,
-              `CUP ${Math.round(cup).toLocaleString()}`,
-              `$${usd.toFixed(2)}`,
+              s.quantity + ' ' + s.unit,
+              original,
+              equiv,
               s.paymentMethod,
               s.customerInfo || '-'
             ];
           });
-          autoTable(doc, { startY: 82, head: [['Fecha y hora', 'Producto', 'Cant', 'CUP', 'USD', 'Metodo', 'Info']], body: tableData, theme: 'striped' });
+          autoTable(doc, { startY: 82, head: [['Fecha/hora', 'Producto', 'Cant', 'Monto', 'Equiv.', 'Metodo', 'Info']], body: tableData, theme: 'striped', styles: { fontSize: 8 } });
         }
         
-        const fileName = `Reporte_${selectedMonthKey}_${isTotal ? 'Total' : 'Detallado'}.pdf`;
+        const filePeriod = periodType === 'day' ? 'dia' : periodType === 'week' ? 'semana' : selectedMonthKey;
+        const fileName = `Reporte_${filePeriod}_${isTotal ? 'Total' : 'Detallado'}.pdf`;
         await savePdfAndNotify(doc, fileName);
       }
     } catch (error) {
@@ -281,6 +339,8 @@ export const Reports: React.FC<ReportsProps> = ({ sales, products, onSettleFiao,
     setTimeout(() => setPdfNotification({ visible: false, fileName: '' }), 400);
   };
 
+  const periodLabel = periodType === 'day' ? 'Hoy' : periodType === 'week' ? 'Esta semana' : monthKeyToLabel(selectedMonthKey);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-center gap-4">
@@ -288,36 +348,41 @@ export const Reports: React.FC<ReportsProps> = ({ sales, products, onSettleFiao,
           <h2 className="text-2xl font-black text-slate-800 tracking-tight">Reportes de Rendimiento</h2>
           <p className="text-slate-500 text-sm">Resumen financiero y control de cobros.</p>
         </div>
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-bold text-slate-600">Mes:</label>
-          <select
-            value={selectedMonthKey}
-            onChange={(e) => setSelectedMonthKey(e.target.value)}
-            className="bg-white border border-slate-100 rounded-2xl px-4 py-2.5 shadow-sm text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500"
-          >
-            {availableMonths.map(key => (
-              <option key={key} value={key}>{monthKeyToLabel(key)}</option>
-            ))}
-          </select>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <select
+              value={periodType}
+              onChange={(e) => setPeriodType(e.target.value as ReportPeriodType)}
+              className="appearance-none bg-white border border-slate-200 rounded-2xl pl-4 pr-10 py-2.5 shadow-sm text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-w-[140px]"
+            >
+              <option value="day">Día</option>
+              <option value="week">Semana</option>
+              <option value="month">Mes</option>
+            </select>
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">▼</span>
+          </div>
+          {periodType === 'month' && (
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-bold text-slate-600 whitespace-nowrap">Mes:</label>
+              <select
+                value={selectedMonthKey}
+                onChange={(e) => setSelectedMonthKey(e.target.value)}
+                className="bg-white border border-slate-200 rounded-2xl px-4 py-2.5 shadow-sm text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500 min-w-[120px]"
+              >
+                {availableMonths.map(key => (
+                  <option key={key} value={key}>{monthKeyToLabel(key)}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:gap-6">
-        <SummaryCard title="Ventas Efectivo" cup={totals.cash} usd={cupToUsd(totals.cash)} icon={<Banknote />} color="emerald" />
-        <SummaryCard title="Ventas Transf." cup={totals.transfer} usd={cupToUsd(totals.transfer)} icon={<CreditCard />} color="blue" />
-        <SummaryCard title="Fiao Pendiente" cup={totals.fiao} usd={cupToUsd(totals.fiao)} icon={<UserPlus />} color="rose" />
-        <div className="p-3 md:p-6 rounded-2xl md:rounded-[2rem] border border-slate-100 shadow-sm bg-white overflow-hidden">
-          <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-4">
-            <div className="p-2 md:p-3 rounded-xl md:rounded-2xl bg-indigo-50 text-indigo-600 border border-indigo-100 shrink-0">
-              <DollarSign size={20} />
-            </div>
-            <p className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-wider leading-tight">Ventas total</p>
-          </div>
-          <div>
-            <p className="text-base md:text-2xl font-black text-slate-800 whitespace-nowrap overflow-hidden text-ellipsis">CUP {Math.round(totals.totalCup).toLocaleString()}</p>
-            <p className="text-xs md:text-lg font-bold text-slate-400 whitespace-nowrap overflow-hidden text-ellipsis">${cupToUsd(totals.totalCup).toFixed(2)} USD</p>
-          </div>
-        </div>
+        <SummaryCard title="Ventas Efectivo" cup={totals.cashCup} usd={totals.cashUsd} icon={<Banknote />} color="emerald" exchangeRate={exchangeRate} />
+        <SummaryCard title="Ventas Transf." cup={totals.transferCup} usd={totals.transferUsd} icon={<CreditCard />} color="blue" exchangeRate={exchangeRate} />
+        <SummaryCard title="Fiao Pendiente" cup={totals.fiaoCup} usd={totals.fiaoUsd} icon={<UserPlus />} color="rose" exchangeRate={exchangeRate} />
+        <SummaryCard title="Total cobrado" cup={totals.totalCobradoCup} usd={totals.totalCobradoUsd} icon={<DollarSign />} color="indigo" subtitle="Efectivo + Transf. Sin Fiao." exchangeRate={exchangeRate} />
       </div>
 
       <div className="bg-white p-4 md:p-6 rounded-2xl md:rounded-[2rem] border border-slate-100 shadow-sm">
@@ -530,12 +595,14 @@ export const Reports: React.FC<ReportsProps> = ({ sales, products, onSettleFiao,
   );
 };
 
-const SummaryCard = ({ title, cup, usd, icon, color }: any) => {
+const SummaryCard = ({ title, cup, usd, icon, color, subtitle, exchangeRate }: any) => {
   const colors: any = {
     emerald: 'bg-emerald-50 text-emerald-600 border-emerald-100',
     blue: 'bg-blue-50 text-blue-600 border-blue-100',
     rose: 'bg-rose-50 text-rose-600 border-rose-100',
+    indigo: 'bg-indigo-50 text-indigo-600 border-indigo-100',
   };
+  const rate = exchangeRate || 1;
   return (
     <div className={`p-3 md:p-6 rounded-2xl md:rounded-[2rem] border shadow-sm transition-transform hover:scale-[1.02] bg-white overflow-hidden`}>
       <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-4">
@@ -543,8 +610,20 @@ const SummaryCard = ({ title, cup, usd, icon, color }: any) => {
         <p className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-wider leading-tight">{title}</p>
       </div>
       <div>
-        <p className="text-base md:text-2xl font-black text-slate-800 whitespace-nowrap overflow-hidden text-ellipsis">CUP {Math.round(cup).toLocaleString()}</p>
-        <p className="text-xs md:text-lg font-bold text-slate-400 whitespace-nowrap overflow-hidden text-ellipsis">${usd.toFixed(2)} USD</p>
+        {cup > 0 && (
+          <>
+            <p className="text-base md:text-2xl font-black text-slate-800 whitespace-nowrap overflow-hidden text-ellipsis">CUP {Math.round(cup).toLocaleString()}</p>
+            <p className="text-[11px] md:text-sm font-semibold text-slate-400 whitespace-nowrap overflow-hidden text-ellipsis">≈ ${(cup / rate).toFixed(2)} USD</p>
+          </>
+        )}
+        {usd > 0 && (
+          <>
+            <p className={`${cup > 0 ? 'text-xs md:text-lg mt-1' : 'text-base md:text-2xl'} font-bold text-slate-${cup > 0 ? '600' : '800'} whitespace-nowrap overflow-hidden text-ellipsis`}>${usd.toFixed(2)} USD</p>
+            <p className="text-[11px] md:text-sm font-semibold text-slate-400 whitespace-nowrap overflow-hidden text-ellipsis">≈ CUP {Math.round(usd * rate).toLocaleString()}</p>
+          </>
+        )}
+        {cup === 0 && usd === 0 && <p className="text-base md:text-2xl font-black text-slate-800">—</p>}
+        {subtitle && <p className="text-[10px] text-slate-400 mt-0.5">{subtitle}</p>}
       </div>
     </div>
   );

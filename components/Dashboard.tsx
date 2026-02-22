@@ -144,19 +144,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ products, sales, onRegiste
 
   return (
     <div className="space-y-6 md:space-y-8">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
+      <div className="flex flex-col gap-6">
+        <div className="text-center">
           <h2 className="text-xl md:text-2xl font-bold text-slate-800">Resumen del Negocio</h2>
-          <p className="text-slate-500 text-sm">Vista rápida del estado de tu inventario y ventas.</p>
+          <p className="text-slate-500 text-sm mt-1">Vista rápida del estado de tu inventario y ventas.</p>
         </div>
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-          <div className="flex flex-wrap gap-2 bg-white border border-slate-100 rounded-2xl p-1.5 shadow-sm">
+        <div className="flex flex-col items-center gap-4">
+          <div className="flex flex-wrap justify-center gap-2 bg-white/80 backdrop-blur-sm border border-slate-200/80 rounded-2xl p-2 shadow-md shadow-slate-200/50">
             {filterLabels.map(({ key, label }) => (
               <button
                 key={key}
                 onClick={() => setTimeFilter(key)}
-                className={`px-3 py-2 rounded-xl text-xs md:text-sm font-bold transition-all ${
-                  timeFilter === key ? 'bg-indigo-600 text-white shadow' : 'text-slate-500 hover:bg-slate-50'
+                className={`px-4 py-2.5 rounded-xl text-xs md:text-sm font-bold transition-all duration-200 ease-out active:scale-[0.98] ${
+                  timeFilter === key
+                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200/50 scale-[1.02]'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-800'
                 }`}
               >
                 {label}
@@ -164,12 +166,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ products, sales, onRegiste
             ))}
           </div>
           {timeFilter === 'thisMonth' && availableMonths.length > 0 && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 animate-fadeIn">
               <label className="text-xs font-bold text-slate-500 whitespace-nowrap">Mes:</label>
               <select
                 value={selectedMonthKey}
                 onChange={(e) => setSelectedMonthKey(e.target.value)}
-                className="bg-white border border-slate-100 rounded-xl px-3 py-2 shadow-sm text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500"
+                className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 shadow-sm text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-400 transition-shadow"
               >
                 {availableMonths.map(key => (
                   <option key={key} value={key}>{monthKeyToLabel(key)}</option>
@@ -180,7 +182,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ products, sales, onRegiste
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:gap-6">
+      <div className="grid grid-cols-2 gap-3 md:gap-6 animate-fadeIn">
         <StatCard
           title="Stock Total"
           value={stats.totalStock}
@@ -291,7 +293,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ products, sales, onRegiste
 };
 
 const StatCard: React.FC<{ title: string; value: string | number; icon: React.ReactNode; subtitle: string }> = ({ title, value, icon, subtitle }) => (
-  <div className="bg-white p-3 md:p-5 rounded-2xl border border-slate-100 shadow-sm transition-transform hover:scale-[1.01]">
+  <div className="bg-white p-3 md:p-5 rounded-2xl border border-slate-100 shadow-sm transition-all duration-200 hover:shadow-md hover:border-slate-200/80 active:scale-[0.99]">
     <div className="flex justify-between items-start mb-2">
       <div className="p-1.5 md:p-2 bg-slate-50 rounded-lg">{icon}</div>
     </div>

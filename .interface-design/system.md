@@ -33,8 +33,16 @@
 - **Tap targets:** Mínimo ~44px en acciones táctiles (botones de venta, filtros, acciones de tabla).
 - **Tablas:** En móvil reemplazar por cards/lista cuando sea necesario (ej. Reportes ya usa vista móvil por fila).
 
+## Animación
+
+- **Duración:** 200ms para micro-interacciones (hover, focus), 300–350ms para aparición de bloques.
+- **Easing:** ease-out para entradas y feedback.
+- **Entrada de contenido:** animate-fadeIn (opacity + translateY) en grids y secciones; animate-scaleIn para modales.
+- **Botones:** active:scale-[0.98] o active:scale-[0.99] para feedback táctil.
+- **Filtros/Dropdowns:** transición en hover y estado activo; filtro activo con scale-[1.02] y sombra ligera.
+
 ## Patrones reutilizables
 
-- **StatCard:** bg-white, rounded-2xl, border shadow-sm, icono en contenedor bg-slate-50, valor font-bold text-slate-800.
-- **Filtros temporales:** Tabs o select con opciones (Hoy, Ayer, Mes…) en bg-white rounded-2xl p-1.
+- **StatCard:** bg-white, rounded-2xl, border shadow-sm, transition-all duration-200 hover:shadow-md, icono en contenedor bg-slate-50, valor font-bold text-slate-800.
+- **Filtros temporales:** Centrados, bg-white/80 backdrop-blur, bordes suaves, botones con transición y estado activo destacado.
 - **Toasts:** fixed bottom/right, rounded-2xl shadow-lg, z-50, animación slideUp.
