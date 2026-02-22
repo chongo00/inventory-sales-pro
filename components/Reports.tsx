@@ -658,8 +658,9 @@ const SummaryCard = ({ title, cup, usd, icon, color, subtitle, exchangeRate }: a
     indigo: 'bg-indigo-50 text-indigo-600 border-indigo-100',
   };
   const rate = exchangeRate || 1;
-  const totalCup = cup + (usd * rate);
-  const totalUsd = totalCup / rate;
+  // Mostrar solo lo cobrado en CUP; el equivalente debajo es cup/rate (no mezclar USD convertido para evitar inflar en Mes)
+  const totalCup = cup;
+  const equivUsd = totalCup > 0 ? totalCup / rate : 0;
   return (
     <div className={`p-3 md:p-6 rounded-2xl md:rounded-[2rem] border shadow-sm transition-transform hover:scale-[1.02] bg-white overflow-hidden`}>
       <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-4">
@@ -667,10 +668,20 @@ const SummaryCard = ({ title, cup, usd, icon, color, subtitle, exchangeRate }: a
         <p className="text-[10px] md:text-xs font-black text-slate-400 uppercase tracking-wider leading-tight">{title}</p>
       </div>
       <div>
-        {totalCup > 0 ? (
+        {totalCup > 0 || usd > 0 ? (
           <>
-            <p className="text-base md:text-2xl font-black text-slate-800 whitespace-nowrap overflow-hidden text-ellipsis">CUP {Math.round(totalCup).toLocaleString()}</p>
-            <p className="text-[11px] md:text-sm font-semibold text-slate-400 whitespace-nowrap overflow-hidden text-ellipsis">≈ ${totalUsd.toFixed(2)} USD</p>
+            {totalCup > 0 && (
+              <>
+                <p className="text-base md:text-2xl font-black text-slate-800 whitespace-nowrap overflow-hidden text-ellipsis">CUP {Math.round(totalCup).toLocaleString()}</p>
+                <p className="text-[11px] md:text-sm font-semibold text-slate-400 whitespace-nowrap overflow-hidden text-ellipsis">≈ ${equivUsd.toFixed(2)} USD</p>
+              </>
+            )}
+            {usd > 0 && totalCup === 0 && (
+              <>
+                <p className="text-base md:text-2xl font-black text-slate-800 whitespace-nowrap overflow-hidden text-ellipsis">$ {usd.toFixed(2)} USD</p>
+                <p className="text-[11px] md:text-sm font-semibold text-slate-400 whitespace-nowrap overflow-hidden text-ellipsis">≈ CUP {Math.round(usd * rate).toLocaleString()}</p>
+              </>
+            )}
           </>
         ) : (
           <p className="text-base md:text-2xl font-black text-slate-800">—</p>
